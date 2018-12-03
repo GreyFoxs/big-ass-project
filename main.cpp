@@ -1,15 +1,19 @@
 #include <iostream>
 #include <cmath> // Include math functions
+#include <sstream>
 
 using namespace std;
 
 int fizzBuzz()
 {
-    int range;
     cout << "Please enter a integer for the FizzBuzz program: ";
-    cin >> range;
-    if(range == (int)range){
-        cout << "That is not a integer!";
+    string stringRange;
+    cin >> stringRange;
+    istringstream iss(stringRange);
+    int range = 0;
+
+    if((iss >> range).fail()){
+        cout << "That is not a integer!" << endl;
         fizzBuzz();
     }else{
         for(int idx = 1; idx <= range; idx++){
@@ -155,7 +159,7 @@ int main()
     // ********** Pointers **********
     int example = 300;
     int *pExample = &example;
-    cout << "Memory location of example: " << pExample << endl; // Prints out the memory location of variable: example
+    cout << "Memory slocation of example: " << pExample << endl; // Prints out the memory location of variable: example
     cout << "Value of example: " << *pExample << endl << endl; // Prints out the value of variable: example
 
     // ********** Classes and objects **********
