@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parkeerplaatsen</title>
+
+  <style>
+    /* Set the size of the div element that contains the map */
+    #map {
+      height: 750px;  /* The height is 400 pixels */
+      width: 100%;  /* The width is the width of the web page */
+      margin: auto;
+    }
+  }
+  </style>
+
+</head>
+
+<!-- Initializes FireBase -->
+<script src="https://www.gstatic.com/firebasejs/5.7.2/firebase.js"></script>
+
+<script>
+  // Initialize Firebase
+  var config = {
+    apiKey: "AIzaSyCsmCOYwIf-lgL-Z7Pkv2YRU86MVX-V6fo",
+    authDomain: "stoeptegelproject.firebaseapp.com",
+    databaseURL: "https://stoeptegelproject.firebaseio.com",
+    projectId: "stoeptegelproject",
+    storageBucket: "stoeptegelproject.appspot.com",
+    messagingSenderId: "980623590729"
+  };
+  firebase.initializeApp(config);
+</script>
+
+<!-- Initializes the cluster markerer -->
+<script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js">
+</script>
+
+<!-- Actually loads the map on the page
+(the async defer allows this script to be at the top of the HTML-file) -->
+<script async defer
+src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDQSqyJfmQMjIqPRjODCdkvFh_rHNNXH64&callback=initMap">
+</script>
+
+<body>
+  <h2 align = "center">Meest recente versie</h2>
+  <div id = "map"></div>
+
+  <script>
+    var db = firebase.database();
+    var parkingSpotsRef = db.ref('/')
+    var iconBase = 'https://maps.google.com/mapfiles/kml/shapes/'
+    var parkingSpots, freeParkingSpots, map
+    var markers = []
+
+    // Initializes the map on the webpage
+    function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 6.85,
+        center: new google.maps.LatLng(52.154290, 5.562619),
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        streetViewControl: false,
+        mapTypeControl: false
+      })
+    }
+
+    parkingSpotsRef.on('value', function(snapshot) {
+      addFreeParkingSpotMarkers(snapshot)
+    })
+
+    function resetMap(){
+      for(idx = 0; idx < markers.length; idx++ ){
+        markers[idx].setMap(null)
+      }
+      markers = []
+    }
+
+    // Clusters markers that are close together
+    function clusterMarkers(markers) {
+      var markerCluster = new MarkerClusterer(map, markers,
+      {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
+    }
+
+    function addFreeParkingSpotMarkers(snapshotRef) {
+      resetMap()
+      var fireBaseContent = snapshotRef.val()
+      for(idx = 0; idx < Object.keys(fireBaseContent).length; idx ++) {
+        if(fireBaseContent[idx].parkState == false) {
+          var marker = new google.maps.Marker({
+            position: new google.maps.LatLng(fireBaseContent[idx].lat, fireBaseContent[idx].lng),
+            map: map,
+            icon: iconBase + 'parking_lot_maps.png'
+          })
+          markers.push(marker)
+        } else {
+
+        }
+      }
+      clusterMarkers(markers)
+    }
+
+    // Asks user for permission to get location
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(updatePosition);
+      }
+      return null;
+    }
+
+    function addCurrentLocationMarker(lat, lng) {
+      var marker = new google.maps.Marker({
+        position: new google.maps.LatLng(lat, lng),
+        map: map
+      })
+    }
+
+    function updatePosition(position) {
+      if(position) {
+        window.lat = position.coords.latitude;
+        window.lng = position.coords.longitude;
+        addCurrentLocationMarker(window.lat, window.lng)
+        map.setZoom(18);
+        map.setCenter({lat: window.lat, lng: window.lng});
+      }
+    }
+
+    getLocation()
+
+
+  </script>
+
+</body>
+
+</html>
