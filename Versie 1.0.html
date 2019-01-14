@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html style='height: 100%'>
+<head>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <title>Versie 1.0</title>
+</head>
+
+<!-- Initializes FireBase -->
+<script src='https://www.gstatic.com/firebasejs/5.7.2/firebase.js'></script>
+
+<script>
+// Initialize Firebase
+var config = {
+  apiKey: 'AIzaSyCsmCOYwIf-lgL-Z7Pkv2YRU86MVX-V6fo',
+  authDomain: 'stoeptegelproject.firebaseapp.com',
+  databaseURL: 'https://stoeptegelproject.firebaseio.com',
+  projectId: 'stoeptegelproject',
+  storageBucket: 'stoeptegelproject.appspot.com',
+  messagingSenderId: '980623590729'
+};
+firebase.initializeApp(config);
+</script>
+
+<!-- Initializes the cluster markerer -->
+<script src='https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js'>
+</script>
+
+<!-- Actually loads the map on the page
+(the async defer allows this script to be at the top of the HTML-file) -->
+<script async defer
+src='https://maps.googleapis.com/maps/api/js?key=AIzaSyDQSqyJfmQMjIqPRjODCdkvFh_rHNNXH64&callback=initMap'>
+</script>
+
+<body style='height: 90%'>
+  <h2 align = 'center'>Versie 1.0</h2>
+  <div id = 'map' style = 'width: 100%; height: 100%'></div>
+
+  <script>
+  var db = firebase.database()                                  // Deze en onderstaande zijn op zich wel nodig
+  var parkingSpotsRef = db.ref('/')                             // omdat ze gelijk gebruikt worden bij parkingSpotsRef.on
+  var iconBase = 'https://maps.google.com/mapfiles/kml/shapes/' // Deze hoeft niet perse globaal te zijn, tenzij we van plan zijn nog meer icons te gebruiken
+  var map                                                       // Op zich handig om globaal te houden, omdat deze bij veel functies nodig is en nooit veranderd
+  var markers = []                                              // Goed om één globale array te houden met alle informatie over de markers
+
+  // Initializes the map on the webpage
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      zoom: 6.85,                                           // Sets the zoom value
+      center: new google.maps.LatLng(52.154290, 5.562619),  // Centers the map above the Netherlands
+      mapTypeId: google.maps.MapTypeId.ROADMAP,
+      streetViewControl: false,                             // Disables the Google StreetView button
+      mapTypeControl: false                                 // Disables the option to switch to sattelite view
+    })
+  }
+
+  // As soon as something changes in FireBase --> add/update the markers on the map
+  parkingSpotsRef.on('value', function(snapshot) {
+    addFreeParkingSpotMarkers(snapshot)
+  })
+
+
+  // ******************** ADDING MARKERS TO THE MAP ********************
+
+
+  // Removes all markers from the map
+  function resetMap(){
+    for(idx = 0; idx < markers.length; idx++ ){   // For each current marker
+      markers[idx].setMap(null)                   // Set map value to null
+    }
+    markers = []                                  // Empties current markers array
+  }
+
+  // Clusters markers that are close together
+  function clusterMarkers(markers) {
+    var markerCluster = new MarkerClusterer(map, markers,
+      {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
+    }
+
+  function addFreeParkingSpotMarkers(snapshotArg) {
+    resetMap()
+    var fireBaseContent = snapshotArg.val()
+    for(idx = 0; idx < Object.keys(fireBaseContent).length; idx ++) { // Loops through all of the items in FireBase
+      if(fireBaseContent[idx].parkState == false) {                   // If parkState is false (there is no car currently parked)
+        var marker = new google.maps.Marker({                         // Place a marker on the map with custom icon
+          position: new google.maps.LatLng(fireBaseContent[idx].lat, fireBaseContent[idx].lng),
+          map: map,
+          icon: iconBase + 'parking_lot_maps.png'
+        })
+        markers.push(marker)                                          // Add the marker object to markers array
+      }
+    }
+    clusterMarkers(markers)                                           // Applies the marker clusterer so that markers placed close together get clustered
+  }
+
+  function addMarker(lat, lng, icon = 'parking_lot_maps.png') {
+    var marker = new google.maps.Marker({
+      position: new google.maps.LatLng(lat, lng),
+      map: map,
+      icon: iconBase + icon
+    })
+  }
+
+
+    // ******************** GETTING USER LOCATION ********************
+
+
+    // Asks user for permission to get location
+    function getLocation() {
+      if (navigator.geolocation) {                                  // If user agrees to share location
+        navigator.geolocation.getCurrentPosition(updatePosition);
+      }
+      return null;                                                  // Else return null
+    }
+
+    // Adds a marker to the map to show current location of user
+    function addCurrentLocationMarker(lat, lng) {
+      var marker = new google.maps.Marker({
+        position: new google.maps.LatLng(lat, lng),
+        map: map,
+        icon: iconBase + 'shaded_dot.png'
+      })
+    }
+
+    function updatePosition(position) {
+      if(position) {
+        window.lat = position.coords.latitude;
+        window.lng = position.coords.longitude;
+        addCurrentLocationMarker(window.lat, window.lng)        // Adds marker to map
+        map.setCenter({lat: window.lat, lng: window.lng})       // Centers the map on the current location
+        map.setZoom(18)                                         // Zooms in
+      }
+      var currentLocation = [{lat: window.lat, lng: window.lng}] // Saves coordinates of user location in object in array
+      return currentLocation                                    // Returns coordinates of user location
+    }
+
+    getLocation()   // ******************** DEZE HOEFT NIET PERSE HIER AANGEROEPEN TE WORDEN: KAN OOK IN EEN EVENTUELE initPage() FUNCTIE ********************
+
+
+    // ******************** AS THE CROW FLIES DISTANCE CALCULATION ********************
+
+
+    // Calculates the distance between two points based on latitude and longitude
+    function getDistanceFromLatLonInKm(lat1,lng1,lat2,lng2) {
+      var R = 6371;                           // Radius of the earth in km
+      var dLat = deg2rad(lat2-lat1);          // deg2rad below
+      var dLng = deg2rad(lng2-lng1);
+      var a =
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLng/2) * Math.sin(dLng/2)
+        ;
+      var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      var d = R * c;                         // Distance in km
+      return d;                              // Returns distance
+    }
+
+    // Converts degrees into radians
+    function deg2rad(deg) {
+      return deg * (Math.PI/180)
+    }
+
+
+    // ******************** COMPARISON FUNCTIONS TO BE USED WITH .SORT() ********************
+
+
+    // Compares distance of object
+    function compareDistance(a, b){
+      return compareWithProperty(a, b, 'distance')
+    }
+
+    // Compares duration of object
+    function compareDuration(a, b){
+      return compareWithProperty(a, b, 'duration')
+    }
+
+    // Sorts numerical values from low to high when combined with the .sort() function
+    function compareWithProperty(a, b, property){
+      var comparison = 0
+      if(a[property] > b[property]) {
+        comparison = 1
+      } else if(a[property] < b[property]) {
+        comparison = -1
+      }
+      return comparison
+    }
+
+
+    // ******************** GOOGLE API DISTANCE CALCULATION ********************
+
+
+    // Adds distance from current user location to each marker and each marker object in markers array
+    function calculateNearestParkingSpots() {
+      for(idx = 0; idx < markers.length; idx++) {
+        var currentLocationLat = updatePosition()[0].lat
+        var currentLocationLng = updatePosition()[0].lng
+        var markerLat = markers[idx].position.lat()
+        var markerLng = markers[idx].position.lng()
+        var distance = getDistanceFromLatLonInKm(currentLocationLat, currentLocationLng, markerLat, markerLng)
+        markers[idx].distance = distance
+      }
+      markers.sort(compareDistance) // Sorts markers based on distance from current user location
+    }
+
+    // Makes a local array which stores only the latitude and longitude of each marker
+    function getLatLngOfNearestMarkers() {
+      var nearestMarkers = markers.slice(0, 25)                      // Takes the 25 closest markers
+      var nearestMarkersLatLng = []                                  // Creates new empty array
+      for(idx = 0; idx < nearestMarkers.length; idx++) {
+        markerLat = nearestMarkers[idx].position.lat()
+        markerLng = nearestMarkers[idx].position.lng()
+        nearestMarkersLatLng.push({lat: markerLat, lng: markerLng}) // Pushes marker latitude and longitude object into array
+      }
+      return nearestMarkersLatLng
+    }
+
+    // Sends data to Google to utilize Distance Matrix
+    function calculateNearestParkingSpot() {
+      var service = new google.maps.DistanceMatrixService()
+      service.getDistanceMatrix(
+        {
+          origins: updatePosition(),                  // Returns array with current location lat and lng as origin
+          destinations: getLatLngOfNearestMarkers(),  // Returns array with lat and lng of 25 closest markers as possible destinations
+          travelMode: 'DRIVING',                      // Calculates route based on a driving user
+        }, callback);                                 // Initializes callback function
+    }
+
+    // Waits for Google Distance Matrix to complete calculations and then returns results
+    function callback(response, status) {
+      if (status == 'OK') {
+        var origins = response.originAddresses;
+        var destinations = response.destinationAddresses;
+
+        for (var i = 0; i < origins.length; i++) {
+          var results = response.rows[i].elements;
+          for (var j = 0; j < results.length; j++) {
+            var element = results[j];
+            var distance = element.distance.text;
+            var duration = element.duration.text;
+            var from = origins[i];
+            var to = destinations[j];
+            markers[j].duration = duration
+          }
+          markers.sort(compareDuration)                                                   // Sorteert de markers op reistijd
+          markers[0].icon = iconBase + 'arrow.png'                                        // Verandert het logo van de dichtstbijzijnde marker
+          map.setCenter({lat: markers[0].position.lat(), lng: markers[0].position.lng()}) // Centreert de map op de dichtstbijzijnde parkeerplaats
+          addMarker(markers[0].position.lat(), markers[0].position.lng(), 'arrow.png')    // Plaatst een nieuwe marker op de plaats van de dichtstbijzijnde parkeerplaats
+        }
+      }
+    }
+
+  </script>
+
+  </body>
+
+  </html>
